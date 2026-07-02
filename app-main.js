@@ -2208,13 +2208,29 @@ function resolveAccountCode(rawVal, currentHeads) {
 // Guess account type from raw name keywords (used when auto-creating unknown heads)
 function inferAccountType(name) {
   const lower = (name || '').toLowerCase();
-  if (/bank|atm|cheque|receivable|advance paid|security deposit|fixed deposit|petty cash|cash at/.test(lower)) return 'Asset';
-  if (/cash/.test(lower)) return 'Asset';
-  if (/income|revenue|receipt|interest received|rent received|commission received|dividend/.test(lower)) return 'Income';
-  if (/payable|loan|liability|creditor|advance received|overdraft/.test(lower)) return 'Liability';
-  if (/capital|equity|reserve|fund|surplus/.test(lower)) return 'Equity';
-  return 'Expense'; // Safe default for unknown accounts
+
+  // ── 1. INCOME — checked FIRST so "JCOM Bank Interest" doesn't fall into Asset ──
+  // Names that END with "interest", "interest income", "interest received/earned"
+  if (/interest(\s+(income|received|earned))?$/.test(lower)) return 'Income';
+  // Other clear income keywords
+  if (/\bdividend|rental income|rent received|commission received|service income|service charge income/.test(lower)) return 'Income';
+  // "income" or "revenue" as a standalone word (not part of "income tax payable" etc.)
+  if (/\bincome\b/.test(lower) && !/payable|tax/.test(lower)) return 'Income';
+  if (/\brevenue\b/.test(lower)) return 'Income';
+
+  // ── 2. LIABILITY — before Asset so "Bank Loan" → Liability not Asset ──────────
+  if (/\bloan\b|payable\b|overdraft|\bcreditor\b|advance received|liability/.test(lower)) return 'Liability';
+
+  // ── 3. EQUITY ────────────────────────────────────────────────────────────────
+  if (/\bcapital\b|\bequity\b|\breserve\b|\bsurplus\b|\bfund\b/.test(lower)) return 'Equity';
+
+  // ── 4. ASSET — after income/liability so bank-named income heads resolve correctly
+  if (/\bbank\b|\bcash\b|\batm\b|receivable\b|advance paid|fixed deposit|petty cash/.test(lower)) return 'Asset';
+
+  // ── 5. Default: Expense (safest fallback for unknown accounts) ────────────────
+  return 'Expense';
 }
+
 
 function autoCreateHead(name, type, currentHeads) {
   // Pick a starting ID range based on type
