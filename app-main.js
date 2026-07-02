@@ -1860,11 +1860,14 @@ function processExcelFile(file) {
       let skippedCount = 0;
 
       rawTxnsJson.forEach((row, idx) => {
-        const dateRaw = row["Date (dd-mm-yyyy)"] || row["Date"] || "";
-        const typeRaw = String(row["Type"] || "").trim().toLowerCase();
+        // Support both export formats: "Date (YYYY-MM-DD)" and legacy "Date (dd-mm-yyyy)"
+        const dateRaw = row["Date (YYYY-MM-DD)"] || row["Date (dd-mm-yyyy)"] || row["Date"] || "";
+        // Support both "Voucher Type" (backup export) and simple "Type" (manual import)
+        const typeRaw = String(row["Voucher Type"] || row["Type"] || "").trim().toLowerCase();
         const headIdRaw = String(row["Head ID"] || "").trim();
         const categoryRaw = String(row["Category"] || "").trim();
-        const amount = parseFloat(row["Amount"] || 0);
+        // Support both "Amount (₹)" (backup export) and plain "Amount" (manual import)
+        const amount = parseFloat(row["Amount (\u20B9)"] || row["Amount"] || 0);
         const modeRaw = String(row["Mode"] || "").trim();
         const reference = String(row["Reference"] || "").trim();
         const description = String(row["Description"] || "").trim();
