@@ -128,10 +128,46 @@ function loadFromLocalStorage() {
     migrated = true;
   }
 
+  // ── Auto-Repair Corrupted Same-Account Entries (e.g. JCOM BANK -> JCOM BANK) ──
+  transactions.forEach(t => {
+    if (t.debit_acc && t.debit_acc === t.credit_acc && (t.debit_acc === '102' || t.debit_acc === '101')) {
+      const isJcom = t.debit_acc === '102';
+      const bankName = isJcom ? "JCOM Bank" : "CBI Bank";
+      const targetHeadName = `${bankName} Interest`;
+      
+      // Look for the Interest head
+      let interestHead = heads.find(h => h.name_en.toLowerCase() === targetHeadName.toLowerCase());
+      if (!interestHead) {
+        // Create the head if it got deleted/merged
+        const newId = autoCreateHead(targetHeadName, 'Income', heads);
+        interestHead = heads.find(h => h.id === newId);
+      }
+
+      if (t.voucher_type === 'Receipt') {
+        // Receipt should Debit Bank (101/102) and Credit Income (Interest)
+        t.credit_acc = interestHead.id;
+        migrated = true;
+      } else if (t.voucher_type === 'Payment') {
+        // Payment should Debit Expense/Income and Credit Bank (101/102)
+        t.debit_acc = interestHead.id;
+        migrated = true;
+      }
+    }
+  });
+
+  // Strict matching helpers for main bank accounts to prevent corrupting other heads like "JCOM Bank Interest"
+  const isJcomBank = (val) => {
+    const clean = String(val || "").trim().toLowerCase().replace(/\s+/g, "");
+    return clean === "102" || clean === "jcom" || clean === "jcombank" || clean === "bank:jcom" || clean === "bank:jcombank";
+  };
+  const isCbiBank = (val) => {
+    const clean = String(val || "").trim().toLowerCase().replace(/\s+/g, "");
+    return clean === "101" || clean === "cbi" || clean === "cbibank" || clean === "bank:cbi" || clean === "bank:cbibank";
+  };
+
   // 2. Normalize Bank Head IDs and Transaction references to ensure 101/102 are used consistently
   heads.forEach(h => {
-    const cleanName = h.name_en.trim().toLowerCase().replace(/\s+/g, "");
-    if (cleanName.includes("jcom") && h.id !== "102") {
+    if (isJcomBank(h.name_en) && h.id !== "102") {
       const oldId = h.id;
       transactions.forEach(t => {
         if (t.debit_acc === oldId) t.debit_acc = "102";
@@ -140,7 +176,7 @@ function loadFromLocalStorage() {
       h.id = "102";
       migrated = true;
     }
-    if (cleanName.includes("cbi") && h.id !== "101") {
+    if (isCbiBank(h.name_en) && h.id !== "101") {
       const oldId = h.id;
       transactions.forEach(t => {
         if (t.debit_acc === oldId) t.debit_acc = "101";
@@ -183,12 +219,12 @@ function loadFromLocalStorage() {
 
   // Rename any heads having English/Alternative name matching "Bank: JCOM" or "Bank: CBI"
   heads.forEach(h => {
-    if (h.name_en === "Bank: JCOM" || h.name_en === "Bank:  JCOM" || h.name_en.toLowerCase().includes("bank: jcom") || h.name_en.toLowerCase() === "bank: jcom") {
+    if (isJcomBank(h.name_en) && h.name_en !== "JCOM BANK") {
       h.name_en = "JCOM BANK";
       h.name_gu = "JCOM BANK";
       migrated = true;
     }
-    if (h.name_en === "Bank: CBI" || h.name_en === "Bank:  CBI" || h.name_en.toLowerCase().includes("bank: cbi") || h.name_en.toLowerCase() === "bank: cbi") {
+    if (isCbiBank(h.name_en) && h.name_en !== "CBI BANK") {
       h.name_en = "CBI BANK";
       h.name_gu = "CBI BANK";
       migrated = true;
@@ -197,21 +233,18 @@ function loadFromLocalStorage() {
 
   // Clean up "Bank: JCOM" and "Bank: CBI" from transaction narrations and account codes
   transactions.forEach(t => {
-    const drClean = String(t.debit_acc).trim().toLowerCase().replace(/\s+/g, "");
-    const crClean = String(t.credit_acc).trim().toLowerCase().replace(/\s+/g, "");
-    
-    if (drClean.includes("jcom") || drClean === "bank:jcom") {
+    if (isJcomBank(t.debit_acc) && t.debit_acc !== "102") {
       t.debit_acc = "102";
       migrated = true;
-    } else if (drClean.includes("cbi") || drClean === "bank:cbi") {
+    } else if (isCbiBank(t.debit_acc) && t.debit_acc !== "101") {
       t.debit_acc = "101";
       migrated = true;
     }
     
-    if (crClean.includes("jcom") || crClean === "bank:jcom") {
+    if (isJcomBank(t.credit_acc) && t.credit_acc !== "102") {
       t.credit_acc = "102";
       migrated = true;
-    } else if (crClean.includes("cbi") || crClean === "bank:cbi") {
+    } else if (isCbiBank(t.credit_acc) && t.credit_acc !== "101") {
       t.credit_acc = "101";
       migrated = true;
     }
@@ -219,8 +252,8 @@ function loadFromLocalStorage() {
     if (t.narration) {
       const orig = t.narration;
       t.narration = t.narration
-        .replace(/Bank:\s*JCOM/gi, "JCOM BANK")
-        .replace(/Bank:\s*CBI/gi, "CBI BANK");
+        .replace(/\bBank:\s*JCOM\b/gi, "JCOM BANK")
+        .replace(/\bBank:\s*CBI\b/gi, "CBI BANK");
       if (t.narration !== orig) migrated = true;
     }
   });
@@ -230,19 +263,19 @@ function loadFromLocalStorage() {
     if (d.member_bank) {
       const orig = d.member_bank;
       d.member_bank = d.member_bank
-        .replace(/Bank:\s*JCOM/gi, "JCOM BANK")
-        .replace(/Bank:\s*CBI/gi, "CBI BANK");
+        .replace(/\bBank:\s*JCOM\b/gi, "JCOM BANK")
+        .replace(/\bBank:\s*CBI\b/gi, "CBI BANK");
       if (d.member_bank !== orig) migrated = true;
     }
     if (d.society_bank) {
       const orig = d.society_bank;
-      const cleanSoc = String(d.society_bank).trim().toLowerCase().replace(/\s+/g, "");
-      if (cleanSoc.includes("jcom") || cleanSoc === "bank:jcom") {
+      if (isJcomBank(d.society_bank) && d.society_bank !== "102") {
         d.society_bank = "102";
-      } else if (cleanSoc.includes("cbi") || cleanSoc === "bank:cbi") {
+        migrated = true;
+      } else if (isCbiBank(d.society_bank) && d.society_bank !== "101") {
         d.society_bank = "101";
+        migrated = true;
       }
-      if (d.society_bank !== orig) migrated = true;
     }
   });
 
