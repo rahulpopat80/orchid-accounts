@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orchid Heights - Double Entry Accounting Software</title>
+  <!-- Google Fonts for English -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js for beautiful dashboards -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- SheetJS for importing and exporting real Excel sheets -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar no-print">
+      <div class="brand">
+        <img src="logo.jpg" onerror="this.src='file:///C:/Users/RJP079/.gemini/antigravity/brain/dece1ed9-3a47-41a1-a3cd-6f494e2afb12/media__1782806398472.jpg'" alt="Orchid Heights Logo" class="brand-logo">
+        <div>
+          <h2 class="brand-title">Orchid Heights</h2>
+          <span class="brand-subtitle">Double-Entry System</span>
+        </div>
+      </div>
+      <nav class="nav-menu">
+        <a href="#dashboard" class="nav-item active" onclick="switchTab('dashboard')">
+          <i class="fa-solid fa-chart-line"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="#vouchers" class="nav-item" onclick="switchTab('vouchers')">
+          <i class="fa-solid fa-receipt"></i>
+          <span>Voucher Entry</span>
+        </a>
+        <a href="#ledger" class="nav-item" onclick="switchTab('ledger')">
+          <i class="fa-solid fa-book"></i>
+          <span>General Ledger</span>
+        </a>
+        <a href="#reports" class="nav-item" onclick="switchTab('reports')">
+          <i class="fa-solid fa-file-invoice-dollar"></i>
+          <span>Financial Reports</span>
+        </a>
+        <a href="#deposits" class="nav-item" onclick="switchTab('deposits')">
+          <i class="fa-solid fa-users-gear"></i>
+          <span>Member Deposits</span>
+        </a>
+        <a href="#heads" class="nav-item" onclick="switchTab('heads')">
+          <i class="fa-solid fa-list-check"></i>
+          <span>Manage Heads</span>
+        </a>
+        <a href="#excel-io" class="nav-item" onclick="switchTab('excel-io')">
+          <i class="fa-solid fa-file-excel"></i>
+          <span>Excel Import/Export</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <p>&copy; 2026 Orchid Heights</p>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top header bar -->
+      <header class="top-bar no-print">
+        <div class="page-title-container">
+          <h1 id="current-page-title">Dashboard</h1>
+        </div>
+        <div class="header-controls">
+          <div style="color: #ff6b81; font-weight: bold; font-size: 13.5px; margin-right: 15px;" class="no-print">
+            Developed By Rahul Popat (If any query please contact on 9898180810)
+          </div>
+          <!-- Reset button for ease of testing -->
+          <button class="btn btn-outline btn-reset" onclick="resetToSeedData()">
+            <i class="fa-solid fa-rotate-left"></i>
+            <span>Reset Data</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- TAB content panels -->
+      <div class="tab-panels">
+        
+        <!-- DASHBOARD TAB -->
+        <section id="dashboard" class="tab-panel active">
+          <!-- Top KPI Cards -->
+          <div class="kpi-grid">
+            <div class="kpi-card bank-kpi">
+              <div class="kpi-icon"><i class="fa-solid fa-building-columns"></i></div>
+              <div class="kpi-info">
+                <span class="kpi-label">Total Bank Balance</span>
+                <h3 class="kpi-value" id="kpi-bank-bal">₹0.00</h3>
+              </div>
+            </div>
+            <div class="kpi-card cash-kpi">
+              <div class="kpi-icon"><i class="fa-solid fa-wallet"></i></div>
+              <div class="kpi-info">
+                <span class="kpi-label">Cash in Hand</span>
+                <h3 class="kpi-value" id="kpi-cash-bal">₹0.00</h3>
+              </div>
+            </div>
+            <div class="kpi-card income-kpi">
+              <div class="kpi-icon"><i class="fa-solid fa-arrow-down-long"></i></div>
+              <div class="kpi-info">
+                <span class="kpi-label">Current Month Income</span>
+                <h3 class="kpi-value text-success" id="kpi-total-income">₹0.00</h3>
+              </div>
+            </div>
+            <div class="kpi-card expense-kpi">
+              <div class="kpi-icon"><i class="fa-solid fa-arrow-up-long"></i></div>
+              <div class="kpi-info">
+                <span class="kpi-label">Current Month Expense</span>
+                <h3 class="kpi-value text-danger" id="kpi-total-expense">₹0.00</h3>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts and Recent Transactions -->
+          <div class="dashboard-grid">
+            <div class="chart-container card">
+              <h3 class="card-title">Monthly Income vs Expenses</h3>
+              <div class="chart-wrapper">
+                <canvas id="monthlyChart"></canvas>
+              </div>
+            </div>
+            <div class="recent-transactions card">
+              <div class="card-header">
+                <h3 class="card-title">Recent Transactions</h3>
+                <button class="btn btn-link no-print" onclick="switchTab('vouchers')">
+                  <span>View All Book</span> <i class="fa-solid fa-arrow-right"></i>
+                </button>
+              </div>
+              <div class="table-responsive">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Type</th>
+                      <th>Transaction Ledger Accounts</th>
+                      <th class="text-right">Amount (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recent-txns-tbody">
+                    <!-- Dynamic rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VOUCHERS (TRANSACTIONS) TAB -->
+        <section id="vouchers" class="tab-panel">
+          <div class="voucher-layout">
+            <!-- Voucher Entry Form -->
+            <div class="card voucher-form-card">
+              <h3 class="card-title" id="voucher-form-title">Create Voucher Entry</h3>
+              <form id="voucher-form" onsubmit="saveVoucher(event)">
+                <input type="hidden" id="voucher-id">
+                
+                <div class="form-row">
+                  <div class="form-group col-6">
+                    <label for="v-date">Voucher Date</label>
+                    <input type="date" id="v-date" required class="form-control">
+                  </div>
+                  <div class="form-group col-6">
+                    <label for="v-type">Voucher Type</label>
+                    <select id="v-type" class="form-control" onchange="adjustVoucherForm()" required>
+                      <option value="Payment">Payment</option>
+                      <option value="Receipt">Receipt</option>
+                      <option value="Contra">Contra</option>
+                      <option value="Journal">Journal</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row" id="explanation-row">
+                  <div class="col-12 text-muted voucher-info-box">
+                    <i class="fa-solid fa-circle-info"></i> <span id="voucher-help-text"></span>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group col-6">
+                    <label id="lbl-debit-acc" for="v-debit">Debit Account (Dr)</label>
+                    <select id="v-debit" class="form-control" required>
+                      <!-- Options loaded dynamically -->
+                    </select>
+                  </div>
+                  <div class="form-group col-6">
+                    <label id="lbl-credit-acc" for="v-credit">Credit Account (Cr)</label>
+                    <select id="v-credit" class="form-control" required>
+                      <!-- Options loaded dynamically -->
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group col-12">
+                    <label for="v-amount">Amount (₹)</label>
+                    <input type="number" id="v-amount" class="form-control" min="1" step="0.01" required placeholder="0.00">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group col-12">
+                    <label for="v-narration">Narration (Details/Remarks)</label>
+                    <textarea id="v-narration" class="form-control" rows="2" placeholder="Describe the transaction..."></textarea>
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary" id="btn-save-voucher">
+                    <i class="fa-solid fa-save"></i> <span>Save Entry</span>
+                  </button>
+                  <button type="button" class="btn btn-outline" onclick="resetVoucherForm()">
+                    <i class="fa-solid fa-eraser"></i> <span>Clear Form</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- Voucher History Table -->
+            <div class="card voucher-history-card">
+              <h3 class="card-title">Transaction Book</h3>
+              <div class="table-filter-bar">
+                <input type="text" id="voucher-search" class="form-control filter-input" placeholder="Search transactions..." oninput="filterVouchers()">
+                <select id="voucher-type-filter" class="form-control filter-select" onchange="filterVouchers()">
+                  <option value="">All Vouchers</option>
+                  <option value="Payment">Payment Only</option>
+                  <option value="Receipt">Receipt Only</option>
+                  <option value="Contra">Contra Only</option>
+                  <option value="Journal">Journal Only</option>
+                </select>
+              </div>
+              <div class="table-responsive list-table-container">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Type</th>
+                      <th>Debit Account</th>
+                      <th>Credit Account</th>
+                      <th class="text-right">Amount (₹)</th>
+                      <th class="text-center no-print">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="vouchers-tbody">
+                    <!-- Dynamic rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- GENERAL LEDGER TAB -->
+        <section id="ledger" class="tab-panel">
+          <div class="card report-control-card no-print">
+            <div class="ledger-selectors-row">
+              <div class="form-group">
+                <label for="ledger-head-select">Select Account Head</label>
+                <select id="ledger-head-select" class="form-control" onchange="generateLedger()">
+                  <!-- Dynamically populated -->
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="ledger-from-date">From Date</label>
+                <input type="date" id="ledger-from-date" class="form-control" onchange="generateLedger()">
+              </div>
+              <div class="form-group">
+                <label for="ledger-to-date">To Date</label>
+                <input type="date" id="ledger-to-date" class="form-control" onchange="generateLedger()">
+              </div>
+              <div class="form-group btn-align">
+                <button class="btn btn-secondary" onclick="window.print()">
+                  <i class="fa-solid fa-print"></i> <span>Print PDF Report</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Printable Ledger Report Content -->
+          <div class="card report-print-card" id="ledger-report-card">
+            <div class="report-header">
+              <div class="report-logo-container">
+                <img src="logo.jpg" onerror="this.src='file:///C:/Users/RJP079/.gemini/antigravity/brain/dece1ed9-3a47-41a1-a3cd-6f494e2afb12/media__1782806398472.jpg'" alt="Orchid Heights Logo" class="report-logo">
+                <h2>Orchid Heights</h2>
+              </div>
+              <h1 id="ledger-title-text">Account Ledger</h1>
+              <p id="ledger-date-range">Date: 01/06/2026 to 30/06/2026</p>
+            </div>
+            
+            <div class="ledger-meta-info">
+              <div>
+                <span class="label">Account Type:</span>
+                <strong id="ledger-meta-type">Asset</strong>
+              </div>
+              <div>
+                <span class="label">Opening Balance:</span>
+                <strong id="ledger-meta-opening">₹0.00</strong>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-bordered table-striped report-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Particulars</th>
+                    <th>Voucher Type</th>
+                    <th class="text-right">Debit (Dr) (₹)</th>
+                    <th class="text-right">Credit (Cr) (₹)</th>
+                    <th class="text-right">Balance (₹)</th>
+                  </tr>
+                </thead>
+                <tbody id="ledger-tbody">
+                  <!-- Dynamic rows -->
+                </tbody>
+                <tfoot>
+                  <tr class="total-row">
+                    <td colspan="3">Total for Period</td>
+                    <td class="text-right text-success" id="ledger-total-debit">₹0.00</td>
+                    <td class="text-right text-danger" id="ledger-total-credit">₹0.00</td>
+                    <td class="text-right" id="ledger-final-balance">₹0.00</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- FINANCIAL REPORTS TAB -->
+        <section id="reports" class="tab-panel">
+          <!-- Sub-navigation for different reports -->
+          <div class="report-tabs no-print">
+            <button class="report-tab-btn active" onclick="switchReport('trial-balance')" id="btn-tb-tab">Trial Balance</button>
+            <button class="report-tab-btn" onclick="switchReport('profit-loss')" id="btn-pl-tab">Profit & Loss A/c</button>
+            <button class="report-tab-btn" onclick="switchReport('balance-sheet')" id="btn-bs-tab">Balance Sheet</button>
+            <button class="report-tab-btn" onclick="switchReport('expense-report')" id="btn-er-tab">Monthly Expense Report</button>
+            <button class="report-tab-btn" onclick="switchReport('bank-statement')" id="btn-bank-tab">Bank Statement</button>
+            
+            <div class="report-date-filter-group">
+              <label for="reports-month-select" style="font-size: 13px; color: #94a3b8; margin-right: 8px;">Select Month:</label>
+              <select id="reports-month-select" class="form-control" style="width: 170px;" onchange="runSelectedReport()"></select>
+              
+              <span id="reports-bank-select-wrapper" style="display: none; align-items: center; margin-left: 15px;">
+                <label for="reports-bank-select" style="font-size: 13px; color: #94a3b8; margin-right: 8px;">Select Bank:</label>
+                <select id="reports-bank-select" class="form-control" style="width: 170px;" onchange="runSelectedReport()"></select>
+              </span>
+              
+              <button class="btn btn-secondary" onclick="window.print()" style="margin-left: 15px;">
+                <i class="fa-solid fa-print"></i> <span>Print PDF Report</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 1. TRIAL BALANCE PANEL -->
+          <div id="trial-balance-panel" class="report-panel active">
+            <div class="card report-print-card">
+              <div class="report-header">
+                <div class="report-logo-container">
+                  <img src="logo.jpg" onerror="this.src='file:///C:/Users/RJP079/.gemini/antigravity/brain/dece1ed9-3a47-41a1-a3cd-6f494e2afb12/media__1782806398472.jpg'" alt="Orchid Heights Logo" class="report-logo">
+                  <h2>Orchid Heights</h2>
+                </div>
+                <h1>Trial Balance</h1>
+                <p class="as-of-date-text">As of Date: <span class="current-report-date">30/06/2026</span></p>
+              </div>
+
+              <div class="trial-balance-validation no-print" id="tb-validator-alert">
+                <i class="fa-solid fa-circle-check"></i> <span>Trial Balance is perfectly balanced! Debit matches Credit.</span>
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-bordered report-table">
+                  <thead>
+                    <tr>
+                      <th>Account Head Name</th>
+                      <th>Account Type</th>
+                      <th class="text-right">Debit Balance (Dr) (₹)</th>
+                      <th class="text-right">Credit Balance (Cr) (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tb-tbody">
+                    <!-- Dynamic rows -->
+                  </tbody>
+                  <tfoot>
+                    <tr class="total-row">
+                      <td colspan="2">Grand Total</td>
+                      <td class="text-right" id="tb-total-debit">₹0.00</td>
+                      <td class="text-right" id="tb-total-credit">₹0.00</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. PROFIT & LOSS PANEL -->
+          <div id="profit-loss-panel" class="report-panel">
+            <div class="card report-print-card">
+              <div class="report-header">
+                <div class="report-logo-container">
+                  <img src="logo.jpg" onerror="this.src='file:///C:/Users/RJP079/.gemini/antigravity/brain/dece1ed9-3a47-41a1-a3cd-6f494e2afb12/media__1782806398472.jpg'" alt="Orchid Heights Logo" class="report-logo">
+                  <h2>Orchid Heights</h2>
+                </div>
+                <h1>Profit & Loss Account</h1>
+                <p class="as-of-date-text">For period up to: <span class="current-report-date">30/06/2026</span></p>
+              </div>
+
+              <div class="pl-split-view">
+                <!-- Expenses Side -->
+                <div class="pl-side-container">
+                  <h3 class="pl-side-title">Expenses</h3>
+                  <div class="table-responsive">
+                    <table class="table pl-table">
+                      <thead>
+                        <tr>
+                          <th>Particulars</th>
+                          <th class="text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody id="pl-expenses-tbody">
+                        <!-- Dynamic rows -->
+                      </tbody>
+                      <tfoot>
+                        <tr class="subtotal-row">
+                          <td>Total Expenses</td>
+                          <td class="text-right text-danger" id="pl-total-expenses">₹0.00</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                <!-- Income Side -->
+                <div class="pl-side-container">
+                  <h3 class="pl-side-title">Incomes</h3>
+                  <div class="table-responsive">
+                    <table class="table pl-table">
+                      <thead>
+                        <tr>
+                          <th>Particulars</th>
+                          <th class="text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody id="pl-incomes-tbody">
+                        <!-- Dynamic rows -->
+                      </tbody>
+                      <tfoot>
+                        <tr class="subtotal-row">
+                          <td>Total Incomes</td>
+                          <td class="text-right text-success" id="pl-total-incomes">₹0.00</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pl-net-result-card" id="pl-net-result-box">
+                <span id="pl-net-result-label">Net Profit:</span>
+                <strong id="pl-net-result-val">₹0.00</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. BALANCE SHEET PANEL -->
+          <div id="balance-sheet-panel" class="report-panel">
+            <div class="card report-print-card">
+              <div class="report-header">
+                <div class="report-logo-container">
+                  <img src="logo.jpg" onerror="this.src='file:///C:/Users/RJP079/.gemini/antigravity/brain/dece1ed9-3a47-41a1-a3cd-6f494e2afb12/media__1782806398472.jpg'" alt="Orchid Heights Logo" class="report-logo">
+                  <h2>Orchid Heights</h2>
+                </div>
+                <h1>Balance Sheet</h1>
+                <p class="as-of-date-text">As of Date: <span class="current-report-date">30/06/2026</span></p>
+              </div>
+
+              <div class="bs-split-view">
+                <!-- Liabilities and Capital Side -->
+                <div class="bs-side-container">
+                  <h3 class="bs-side-title">Liabilities & Capital</h3>
+                  <div class="table-responsive">
+                    <table class="table bs-table">
+                      <thead>
+                        <tr>
+                          <th>Particulars</th>
+                          <th class="text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody id="bs-liabilities-tbody">
+                        <!-- Dynamic rows -->
+                      </tbody>
+                      <tfoot>
+                        <tr class="subtotal-row">
+                          <td>Total Liabilities & Capital</td>
+                          <td class="text-right" id="bs-total-liabilities">₹0.00</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                <!-- Assets Side -->
+                <div class="bs-side-container">
+                  <h3 class="bs-side-title">Assets</h3>
+                  <div class="table-responsive">
+                    <table class="table bs-table">
+                      <thead>
+                        <tr>
+                          <th>Particulars</th>
+                          <th class="text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody id="bs-assets-tbody">
+                        <!-- Dynamic rows -->
+                      </tbody>
+                      <tfoot>
+                        <tr class="subtotal-row">
+                          <td>Total Assets</td>
+                          <td class="text-right" id="bs-total-assets">₹0.00</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bs-validation-status" id="bs-validation-box">
+                <i class="fa-solid fa-scale-balanced"></i> <span id="bs-validation-msg">Assets match Liabilities & Capital perfectly!</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. MONTHLY RECEIPTS & PAYMENTS REPORT PANEL -->
+          <div id="expense-report-panel" class="report-panel">
+            <div class="card report-print-card">
+              <div class="report-header">
+                <div class="report-logo-container">
+                  <img src="logo.jpg" onerror="this.src='file:///C:/Users/RJP079/.gemini/antigravity/brain/dece1ed9-3a47-41a1-a3cd-6f494e2afb12/media__1782806398472.jpg'" alt="Orchid Heights Logo" class="report-logo">
+                  <h2>Orchid Heights</h2>
+                </div>
+                 <h1>Monthly Receipts & Payments Report</h1>
+                 <p class="as-of-date-text" style="font-size: 20px !important; font-weight: 800 !important; color: #0f172a !important; margin-top: 10px;">Period: <span class="current-report-date">01/07/2024 to 31/07/2024</span></p>
+              </div>
+
+              <!-- Vertical Receipts & Payments Layout -->
+              <div class="rp-vertical-view" style="margin-top: 20px;">
+                <div class="table-responsive">
+                  <table class="table table-bordered report-table">
+                    <thead>
+                      <tr style="background: rgba(255, 255, 255, 0.05); font-weight: bold;">
+                        <th style="width: 110px;">તારીખ / Date</th>
+                        <th>વિગત / Particulars</th>
+                        <th class="text-right" style="width: 180px;">જમા રકમ (આવક) / Credit (₹)</th>
+                        <th class="text-right" style="width: 180px;">ઉધાર રકમ (જાવક) / Debit (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody id="rp-vertical-tbody">
+                      <!-- Dynamic rows: Opening -> Transactions -> Closing -->
+                    </tbody>
+                    <tfoot>
+                      <tr class="total-row" style="font-weight: bold; background: rgba(255, 255, 255, 0.03);">
+                        <td colspan="2">કુલ સરવાળો / Total Activity</td>
+                        <td class="text-right text-success" id="rp-total-receipts-val">₹0.00</td>
+                        <td class="text-right text-danger" id="rp-total-payments-val">₹0.00</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Committee member signature block -->
+              <div class="report-footer-sig" style="margin-top: 40px; display: flex; justify-content: flex-end;">
+                <div style="text-align: right; font-weight: bold; font-size: 14px; line-height: 1.6;">
+                  From,<br>
+                  <span style="font-size: 15px;">Orchid Heights Committee Member</span>
+                </div>
+              </div>
+          </div>
+
+          <!-- 5. BANK TRANSACTION STATEMENT PANEL -->
+          <div id="bank-statement-panel" class="report-panel">
+            <div class="card report-print-card">
+              <div class="report-header">
+                <div class="report-logo-container">
+                  <img src="logo.jpg" onerror="this.src='file:///C:/Users/RJP079/.gemini/antigravity/brain/dece1ed9-3a47-41a1-a3cd-6f494e2afb12/media__1782806398472.jpg'" alt="Orchid Heights Logo" class="report-logo">
+                  <h2>Orchid Heights</h2>
+                </div>
+                 <h1 id="bank-statement-title">Bank Transaction Statement</h1>
+                 <p class="as-of-date-text" style="font-size: 20px !important; font-weight: 800 !important; color: #0f172a !important; margin-top: 10px;">Period: <span class="current-report-date">01/07/2024 to 31/07/2024</span></p>
+              </div>
+
+              <div class="table-responsive" style="margin-top: 20px;">
+                <table class="table table-bordered report-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Particulars</th>
+                      <th>Cheque / Ref No</th>
+                      <th class="text-right">Deposit (Receipts) (₹)</th>
+                      <th class="text-right">Withdrawal (Payments) (₹)</th>
+                      <th class="text-right">Balance (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="bank-statement-tbody">
+                    <!-- Dynamic rows -->
+                  </tbody>
+                  <tfoot>
+                    <tr style="font-weight: bold; background-color: rgba(255, 255, 255, 0.02);">
+                      <td colspan="3">Total Activity</td>
+                      <td class="text-right text-success" id="bank-statement-total-deposit">₹0.00</td>
+                      <td class="text-right text-danger" id="bank-statement-total-withdraw">₹0.00</td>
+                      <td>-</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <!-- Committee member signature block -->
+              <div class="report-footer-sig" style="margin-top: 40px; display: flex; justify-content: flex-end;">
+                <div style="text-align: right; font-weight: bold; font-size: 14px; line-height: 1.6;">
+                  From,<br>
+                  <span style="font-size: 15px;">Orchid Heights Committee Member</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- MANAGE HEADS TAB -->
+        <section id="heads" class="tab-panel">
+          <div class="heads-layout">
+            <!-- Account Head Form -->
+            <div class="card head-form-card">
+              <h3 class="card-title" id="head-form-title">Add New Account Head</h3>
+              <form id="head-form" onsubmit="saveAccountHead(event)">
+                <input type="hidden" id="head-id">
+                
+                <div class="form-group">
+                  <label for="h-name-en">Account Head Name (English)</label>
+                  <input type="text" id="h-name-en" class="form-control" required placeholder="e.g. Security Salary">
+                </div>
+
+                <div class="form-group">
+                  <label for="h-name-gu">Account Head Name (Gujarati / Alternative Name)</label>
+                  <input type="text" id="h-name-gu" class="form-control" placeholder="Optional alternative name">
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group col-6">
+                    <label for="h-type">Account Category / Type</label>
+                    <select id="h-type" class="form-control" onchange="suggestGroup()" required>
+                      <option value="Asset">Asset</option>
+                      <option value="Liability">Liability</option>
+                      <option value="Equity">Equity</option>
+                      <option value="Income">Income</option>
+                      <option value="Expense">Expense</option>
+                    </select>
+                  </div>
+                  <div class="form-group col-6">
+                    <label for="h-group">Group (Category)</label>
+                    <input type="text" id="h-group" class="form-control" required placeholder="e.g. Bank Accounts, Indirect Expenses">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="h-opening-bal">Opening Balance (₹)</label>
+                  <input type="number" id="h-opening-bal" class="form-control" min="0" step="0.01" value="0">
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary" id="btn-save-head">
+                    <i class="fa-solid fa-save"></i> <span>Save Head</span>
+                  </button>
+                  <button type="button" class="btn btn-outline" onclick="resetHeadForm()">
+                    <i class="fa-solid fa-eraser"></i> <span>Clear Form</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- Chart of Accounts Tree/List -->
+            <div class="card heads-list-card">
+              <h3 class="card-title">Chart of Accounts</h3>
+              <div class="table-filter-bar">
+                <input type="text" id="head-search" class="form-control filter-input" placeholder="Search heads..." oninput="renderHeads()">
+                <select id="head-type-filter" class="form-control filter-select" onchange="renderHeads()">
+                  <option value="">All Types</option>
+                  <option value="Asset">Assets</option>
+                  <option value="Liability">Liabilities</option>
+                  <option value="Equity">Equity</option>
+                  <option value="Income">Incomes</option>
+                  <option value="Expense">Expenses</option>
+                </select>
+              </div>
+              <div class="table-responsive list-table-container">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Code</th>
+                      <th>Head Name</th>
+                      <th>Type</th>
+                      <th>Group</th>
+                      <th class="text-right">Opening</th>
+                      <th class="text-center no-print">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="heads-tbody">
+                    <!-- Dynamic rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- MEMBER DEPOSITS TAB -->
+        <section id="deposits" class="tab-panel">
+          <div class="voucher-layout">
+            <!-- Member Deposit Form Card -->
+            <div class="card head-form-card">
+              <h3 class="card-title" id="deposit-form-title">Record Member Deposit</h3>
+              <form id="deposit-form" onsubmit="saveMemberDeposit(event)">
+                <input type="hidden" id="dep-id">
+                <input type="hidden" id="dep-voucher-id">
+
+                <div class="form-row">
+                  <div class="form-group col-6">
+                    <label for="dep-wing">Wing</label>
+                    <select id="dep-wing" class="form-control" required>
+                      <option value="Wing A">Wing A</option>
+                      <option value="Wing B">Wing B</option>
+                    </select>
+                  </div>
+                  <div class="form-group col-6">
+                    <label for="dep-block">Block No</label>
+                    <select id="dep-block" class="form-control" required>
+                      <!-- Generated dynamically -->
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="dep-member-name">Member Name (સભ્યનું નામ)</label>
+                  <input type="text" id="dep-member-name" class="form-control" required placeholder="e.g. Ramesh Patel">
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group col-6">
+                    <label for="dep-date">Date (તારીખ)</label>
+                    <input type="date" id="dep-date" class="form-control" required>
+                  </div>
+                  <div class="form-group col-6">
+                    <label for="dep-type">Transaction Type</label>
+                    <select id="dep-type" class="form-control" required>
+                      <option value="Deposit">Deposit (જમા કરાવો)</option>
+                      <option value="Withdraw">Withdraw / Refund (પરત મેળવો)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="dep-amount">Amount (ડીપોઝીટની રકમ) (₹)</label>
+                  <input type="number" id="dep-amount" class="form-control" required min="1" step="0.01" placeholder="e.g. 5000">
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group col-6">
+                    <label for="dep-member-bank">Member's Bank Name</label>
+                    <input type="text" id="dep-member-bank" class="form-control" placeholder="e.g. SBI Bank">
+                  </div>
+                  <div class="form-group col-6">
+                    <label for="dep-cheque-no">Cheque Number</label>
+                    <input type="text" id="dep-cheque-no" class="form-control" placeholder="e.g. 123456">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="dep-society-bank">Deposited in Society Bank</label>
+                  <select id="dep-society-bank" class="form-control" required>
+                    <!-- Dynamically populated with bank accounts -->
+                  </select>
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary" id="btn-save-deposit">
+                    <i class="fa-solid fa-save"></i> <span>Save Deposit Entry</span>
+                  </button>
+                  <button type="button" class="btn btn-outline" onclick="resetDepositForm()">
+                    <i class="fa-solid fa-eraser"></i> <span>Clear Form</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- Member Deposit History Card -->
+            <div class="card voucher-history-card">
+              <!-- Print-only Brand Header -->
+              <div class="print-only report-header" style="margin-bottom: 20px;">
+                <div class="report-logo-container">
+                  <img src="logo.jpg" onerror="this.src='file:///C:/Users/RJP079/.gemini/antigravity/brain/dece1ed9-3a47-41a1-a3cd-6f494e2afb12/media__1782806398472.jpg'" alt="Orchid Heights Logo" class="report-logo">
+                  <h2>Orchid Heights</h2>
+                </div>
+                <h1>Member Deposit Ledger</h1>
+              </div>
+
+              <h3 class="card-title no-print">Member Deposit Ledger</h3>
+              <div class="table-filter-bar no-print">
+                <input type="text" id="deposit-search" class="form-control filter-input" placeholder="Search by name, block or cheque..." oninput="renderMemberDeposits()">
+                
+                <label class="btn btn-outline" style="cursor: pointer; margin-left: 10px; margin-bottom: 0;">
+                  <i class="fa-solid fa-file-import"></i> Upload Excel
+                  <input type="file" id="deposit-excel-file" style="display: none;" accept=".xlsx, .xls" onchange="uploadDepositExcel(event)">
+                </label>
+                
+                <button class="btn btn-secondary" onclick="window.print()" style="margin-left: 10px;">
+                  <i class="fa-solid fa-print"></i> Print PDF Ledger
+                </button>
+              </div>
+
+              <div class="no-print" style="font-size: 12px; color: #94a3b8; margin-bottom: 12px; padding: 8px 12px; background: rgba(255,255,255,0.02); border-radius: 6px; line-height: 1.5;">
+                <strong>Excel Format (એક્સેલ ફોર્મેટ):</strong> Columns must be in this exact order: <br>
+                1. <code>Date (તારીખ - YYYY-MM-DD)</code> | 
+                2. <code>Wing (Wing A / Wing B)</code> | 
+                3. <code>Block No (બ્લોક)</code> | 
+                4. <code>Member Name (સભ્યનું નામ)</code> | 
+                5. <code>Type (Deposit / Withdraw)</code> | 
+                6. <code>Amount (રકમ)</code> | 
+                7. <code>Member Bank (સભ્યની બેંક)</code> | 
+                8. <code>Cheque No (ચેક નંબર)</code> | 
+                9. <code>Society Bank (સોસાયટી બેંક - CBI BANK / JCOM BANK)</code>
+              </div>
+              <div class="table-responsive list-table-container">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Block</th>
+                      <th>Member Name</th>
+                      <th>Type</th>
+                      <th>Cheque/Bank Details</th>
+                      <th class="text-right">Amount (₹)</th>
+                      <th class="text-center no-print">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="deposits-tbody">
+                    <!-- Dynamic rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- EXCEL IMPORT & EXPORT TAB -->
+        <section id="excel-io" class="tab-panel">
+          <div class="excel-panel-grid">
+            <!-- Instructions and Template Download Card -->
+            <div class="card excel-info-card">
+              <h3 class="card-title">Excel Operations Guide</h3>
+              <div class="excel-guide-content">
+                <p>Manage your entire accounts using Microsoft Excel sheets. You can backup your data or upload massive transactions at once.</p>
+                
+                <h4 class="guide-sub">1. Download Full Backup or Template</h4>
+                 <p>Download a fully formatted Excel workbook containing three sheets: one for your Account Heads (Chart of Accounts), one for Ledger Transactions, and one for Member Deposits. This functions as a complete backup that can be re-uploaded to restore your data in the exact same state in one click.</p>
+                 <button class="btn btn-primary" onclick="exportToExcel()">
+                   <i class="fa-solid fa-file-excel"></i> <span>Download Excel Backup (.xlsx)</span>
+                 </button>
+
+                 <h4 class="guide-sub">2. Formatting for Upload</h4>
+                 <p>You can upload a single Excel sheet with your transaction details. The sheet must contain the following columns:</p>
+                 <ul style="margin-bottom: 15px;">
+                   <li><code>Date (dd-mm-yyyy)</code> - Transaction date</li>
+                   <li><code>Type</code> - Income, Expense, or Contra</li>
+                   <li><code>Head ID</code> or <code>Category</code> - Account head name or code</li>
+                   <li><code>Amount</code> - Value of the transaction</li>
+                   <li><code>Mode</code> - Cash or bank name (e.g. CBI BANK, Cash in Hand)</li>
+                   <li><code>Reference</code> - Receipt/Chq no (Optional)</li>
+                   <li><code>Description</code> - Narration (Optional)</li>
+                 </ul>
+                 <p class="text-muted"><small>Note: Missing account heads mentioned in the <code>Category</code> column will be automatically created in the system.</small></p>
+               </div>
+             </div>
+
+            <!-- Upload Card -->
+            <div class="card excel-upload-card">
+              <h3 class="card-title">Upload Excel File</h3>
+              <div class="upload-dropzone" id="upload-dropzone" onclick="document.getElementById('excel-file-input').click()">
+                <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                <p>Click to select or drag & drop your Excel file here</p>
+                <span class="file-spec">Supports .xlsx, .xls format</span>
+                <input type="file" id="excel-file-input" style="display:none;" accept=".xlsx, .xls" onchange="handleExcelUpload(event)">
+              </div>
+              <div id="upload-status-box" class="upload-status-box" style="display: none;">
+                <div class="status-header">
+                  <strong id="status-title">Processing file...</strong>
+                  <span id="status-percent">0%</span>
+                </div>
+                <div class="progress-bar-container">
+                  <div class="progress-bar-fill" id="progress-bar-fill"></div>
+                </div>
+                <p id="status-details" class="status-details"></p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+  <!-- JavaScript Files -->
+  <script src="seed-data.js"></script>
+  <script src="app-main.js"></script>
+</body>
+</html>
