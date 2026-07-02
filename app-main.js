@@ -1,11 +1,16 @@
 // Orchid Heights - Double-Entry Accounting Software Logic
 
-// Global State
+// ── Global State ──────────────────────────────────────────────────────────
 let heads = [];
 let transactions = [];
 let memberDeposits = [];
 let currentReportType = 'trial-balance';
 let monthlyChartInstance = null;
+
+// ── Firebase Sync State ───────────────────────────────────────────────────
+let _firestoreSaveTimer = null;   // Debounce timer handle
+let _firestoreIsSaving  = false;  // True while an async Firestore write is in-flight
+let _firestoreListenerSet = false; // Ensure we only set onSnapshot once
 
 // Translation Dictionary (English Only)
 const translations = {
@@ -74,10 +79,16 @@ function formatDateString(date) {
 
 // Local Storage Helper Functions
 function saveToLocalStorage() {
+  // 1. Always write to localStorage immediately (instant, works offline)
   localStorage.setItem("tally_heads", JSON.stringify(heads));
   localStorage.setItem("tally_transactions", JSON.stringify(transactions));
   localStorage.setItem("tally_member_deposits", JSON.stringify(memberDeposits));
   localStorage.setItem("tally_lang", 'en');
+
+  // 2. Debounce Firestore write — batch rapid saves into one write every 2s
+  setSyncStatus('syncing');
+  if (_firestoreSaveTimer) clearTimeout(_firestoreSaveTimer);
+  _firestoreSaveTimer = setTimeout(saveToFirestore, 2000);
 }
 
 function loadFromLocalStorage() {
@@ -238,17 +249,133 @@ function loadFromLocalStorage() {
   if (migrated) {
     saveToLocalStorage();
   }
+
+  // Start real-time Firebase listener for cross-device sync
+  setupRealtimeSync();
 }
 
-// Reset data to seed values
+// Reset data to seed values (also clears Firestore)
 function resetToSeedData() {
-  const confirmMsg = "Are you sure you want to reset all data to default template?";
+  const confirmMsg = "Are you sure you want to reset all data to default template? This will erase ALL data including from cloud sync.";
   if (confirm(confirmMsg)) {
     localStorage.removeItem("tally_heads");
     localStorage.removeItem("tally_transactions");
     localStorage.removeItem("tally_member_deposits");
+    localStorage.removeItem("tally_last_sync");
+
+    // Also clear Firestore so other devices get reset too
+    if (typeof DATA_DOC !== 'undefined') {
+      DATA_DOC.delete().catch(err => console.warn('[Firebase] Reset clear error:', err));
+    }
+
+    heads = [...defaultHeads];
+    transactions = [...defaultTransactions];
+    memberDeposits = [];
+    saveToLocalStorage(); // This will also sync reset to Firestore after 2s
     initApp();
   }
+}
+
+// ============================================================
+// FIREBASE SYNC FUNCTIONS
+// ============================================================
+
+// Async: write all data to Firestore as a single document
+async function saveToFirestore() {
+  if (typeof DATA_DOC === 'undefined') return;
+  try {
+    _firestoreIsSaving = true;
+    setSyncStatus('syncing');
+    await DATA_DOC.set({
+      heads: heads,
+      transactions: transactions,
+      memberDeposits: memberDeposits,
+      lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    // Record local timestamp so we can compare with remote later
+    localStorage.setItem('tally_last_sync', String(Date.now()));
+    setSyncStatus('synced');
+    console.log('[Firebase] ✅ Data synced to Firestore successfully.');
+  } catch (err) {
+    console.error('[Firebase] ❌ Save error:', err);
+    setSyncStatus('offline');
+  } finally {
+    _firestoreIsSaving = false;
+  }
+}
+
+// Set up a real-time Firestore listener — fires immediately with current data,
+// then fires again whenever any other device saves.
+function setupRealtimeSync() {
+  if (_firestoreListenerSet || typeof DATA_DOC === 'undefined') return;
+  _firestoreListenerSet = true;
+
+  DATA_DOC.onSnapshot((doc) => {
+    // Skip if WE are the ones who just saved (avoid feedback loop)
+    if (_firestoreIsSaving) return;
+
+    if (doc.exists) {
+      const data = doc.data();
+      if (data && data.heads && data.transactions) {
+        const remoteMs  = data.lastUpdated ? data.lastUpdated.toMillis() : 0;
+        const localMs   = parseInt(localStorage.getItem('tally_last_sync') || '0');
+
+        if (remoteMs > localMs) {
+          // Remote data is newer — cancel any pending local save and use remote data
+          if (_firestoreSaveTimer) {
+            clearTimeout(_firestoreSaveTimer);
+            _firestoreSaveTimer = null;
+          }
+
+          heads          = data.heads;
+          transactions   = data.transactions;
+          memberDeposits = data.memberDeposits || [];
+
+          // Update local cache
+          localStorage.setItem('tally_heads',            JSON.stringify(heads));
+          localStorage.setItem('tally_transactions',     JSON.stringify(transactions));
+          localStorage.setItem('tally_member_deposits',  JSON.stringify(memberDeposits));
+          localStorage.setItem('tally_last_sync',        String(remoteMs));
+
+          // Re-render the entire UI with fresh data
+          translateUI();
+          adjustVoucherForm();
+          renderDashboard();
+          renderHeads();
+          populateDropdowns();
+          filterVouchers();
+          if (typeof initDepositsTab === 'function') initDepositsTab();
+          if (typeof runSelectedReport === 'function') runSelectedReport();
+
+          setSyncStatus('synced');
+          console.log('[Firebase] 🔄 Real-time update received from another device.');
+        } else {
+          // Remote data is same age or older — still mark as synced
+          setSyncStatus('synced');
+        }
+      }
+    } else {
+      // Document doesn't exist yet in Firestore — push local data up
+      setSyncStatus('syncing');
+      saveToFirestore();
+    }
+  }, (err) => {
+    console.error('[Firebase] Listener error:', err);
+    setSyncStatus('offline');
+  });
+}
+
+// Update the sync status badge in the header
+function setSyncStatus(state) {
+  const badge = document.getElementById('sync-status-badge');
+  if (!badge) return;
+  const icons = {
+    synced:  '<i class="fa-solid fa-cloud-arrow-up"></i> Synced',
+    syncing: '<i class="fa-solid fa-rotate fa-spin"></i> Syncing...',
+    offline: '<i class="fa-solid fa-wifi"></i> Offline'
+  };
+  badge.innerHTML   = icons[state] || icons.offline;
+  badge.className   = `sync-badge sync-${state} no-print`;
 }
 
 // Translation Engine
@@ -1881,8 +2008,16 @@ function processExcelFile(file) {
         let narration = "";
 
         if (debitRaw && creditRaw) {
+          // Resolve debit account — auto-create with EXACT name if not found
           debit_acc = resolveAccountCode(debitRaw, importedHeads);
+          if (!debit_acc) {
+            debit_acc = autoCreateHead(debitRaw, inferAccountType(debitRaw), importedHeads);
+          }
+          // Resolve credit account — auto-create with EXACT name if not found
           credit_acc = resolveAccountCode(creditRaw, importedHeads);
+          if (!credit_acc) {
+            credit_acc = autoCreateHead(creditRaw, inferAccountType(creditRaw), importedHeads);
+          }
           voucher_type = capitalizeFirstLetter(String(row["Voucher Type"] || row["Type"] || "Journal").trim());
           narration = String(row["Narration / Details"] || row["Narration"] || "").trim();
         } else {
@@ -2036,53 +2171,91 @@ function resolveAccountCode(rawVal, currentHeads) {
   if (!rawVal) return null;
   let strVal = String(rawVal).trim();
   
+  // Normalise well-known bank aliases
   const cleanVal = strVal.toLowerCase().replace(/\s+/g, "");
   if (cleanVal.includes("bank:jcom") || cleanVal === "jcom") {
     strVal = "JCOM BANK";
   } else if (cleanVal.includes("bank:cbi") || cleanVal === "cbi") {
     strVal = "CBI BANK";
   }
-  
+
+  // 1. Exact numeric ID match (e.g. "101")
   let match = currentHeads.find(h => h.id === strVal);
   if (match) return match.id;
 
+  // 2. Exact English name match (case-insensitive)
   match = currentHeads.find(h => h.name_en.toLowerCase() === strVal.toLowerCase());
   if (match) return match.id;
 
+  // 3. Exact alternative/Gujarati name match (case-insensitive)
   match = currentHeads.find(h => h.name_gu.toLowerCase() === strVal.toLowerCase());
   if (match) return match.id;
 
-  let cleaned = strVal.split("-")[0].trim();
-  match = currentHeads.find(h => h.id === cleaned);
-  if (match) return match.id;
+  // 4. "101 - CBI BANK" format → extract the ID part before the dash
+  const beforeDash = strVal.split("-")[0].trim();
+  if (beforeDash !== strVal) {           // only if there actually was a dash
+    match = currentHeads.find(h => h.id === beforeDash);
+    if (match) return match.id;
+  }
 
-  match = currentHeads.find(h => h.name_en.toLowerCase().includes(strVal.toLowerCase()) || h.name_gu.toLowerCase().includes(strVal.toLowerCase()));
-  if (match) return match.id;
+  // NOTE: Fuzzy / partial-contains match intentionally removed.
+  // It caused wrong heads to be picked (e.g. "Bank" matching "JCOM BANK").
+  // Unknown accounts are now auto-created with the EXACT name by the caller.
 
   return null;
 }
 
-function autoCreateHead(name, type, currentHeads) {
-  let baseId = "100";
-  if (type === 'Asset') baseId = "1";
-  else if (type === 'Liability') baseId = "2";
-  else if (type === 'Equity') baseId = "2";
-  else if (type === 'Income') baseId = "3";
-  else if (type === 'Expense') baseId = "4";
+// Guess account type from raw name keywords (used when auto-creating unknown heads)
+function inferAccountType(name) {
+  const lower = (name || '').toLowerCase();
+  if (/bank|atm|cheque|receivable|advance paid|security deposit|fixed deposit|petty cash|cash at/.test(lower)) return 'Asset';
+  if (/cash/.test(lower)) return 'Asset';
+  if (/income|revenue|receipt|interest received|rent received|commission received|dividend/.test(lower)) return 'Income';
+  if (/payable|loan|liability|creditor|advance received|overdraft/.test(lower)) return 'Liability';
+  if (/capital|equity|reserve|fund|surplus/.test(lower)) return 'Equity';
+  return 'Expense'; // Safe default for unknown accounts
+}
 
-  const matchingIds = currentHeads.filter(h => h.id.startsWith(baseId)).map(h => parseInt(h.id));
-  const nextId = matchingIds.length > 0 ? Math.max(...matchingIds) + 1 : parseInt(baseId + "01");
-  
+function autoCreateHead(name, type, currentHeads) {
+  // Pick a starting ID range based on type
+  let baseId;
+  if      (type === 'Asset')     baseId = "1";
+  else if (type === 'Liability') baseId = "2";
+  else if (type === 'Equity')    baseId = "2";
+  else if (type === 'Income')    baseId = "3";
+  else                           baseId = "4"; // Expense
+
+  // Find the next available numeric ID in that range
+  const existing = currentHeads
+    .filter(h => h.id.startsWith(baseId) && /^\d+$/.test(h.id))
+    .map(h => parseInt(h.id, 10))
+    .filter(n => !isNaN(n));
+  const nextId = existing.length > 0
+    ? Math.max(...existing) + 1
+    : parseInt(baseId + "01", 10);
+
+  // Determine a sensible group
+  const lower = (name || '').toLowerCase();
+  let group;
+  if      (type === 'Expense')   group = 'Direct Expenses';
+  else if (type === 'Income')    group = 'Direct Incomes';
+  else if (type === 'Liability') group = 'Current Liabilities';
+  else if (type === 'Equity')    group = 'Capital Account';
+  else if (/bank|atm/.test(lower))  group = 'Bank Accounts';
+  else if (/cash/.test(lower))      group = 'Cash Account';
+  else                              group = 'Current Assets';
+
   const newHead = {
     id: String(nextId),
-    name_en: name,
+    name_en: name,          // ← EXACT name from Excel, never altered
     name_gu: name,
-    type: type,
-    group: type === 'Expense' ? 'Direct Expenses' : (type === 'Income' ? 'Direct Incomes' : 'Bank Accounts'),
+    type,
+    group,
     opening_balance: 0,
     is_system: false
   };
   currentHeads.push(newHead);
+  console.log(`[Import] Auto-created head: "${name}" (${type}, ID: ${nextId})`);
   return newHead.id;
 }
 

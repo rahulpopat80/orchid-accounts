@@ -14,6 +14,10 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- SheetJS for importing and exporting real Excel sheets -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Firebase v9 Compat CDN (works without npm/bundler) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
   <!-- Stylesheet -->
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -73,6 +77,10 @@
         <div class="header-controls">
           <div style="color: #ff6b81; font-weight: bold; font-size: 13.5px; margin-right: 15px;" class="no-print">
             Developed By Rahul Popat (If any query please contact on 9898180810)
+          </div>
+          <!-- Firebase Sync Status Badge -->
+          <div id="sync-status-badge" class="sync-badge sync-syncing no-print">
+            <i class="fa-solid fa-rotate fa-spin"></i> Connecting...
           </div>
           <!-- Reset button for ease of testing -->
           <button class="btn btn-outline btn-reset" onclick="resetToSeedData()">
