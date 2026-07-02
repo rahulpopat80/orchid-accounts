@@ -77,6 +77,39 @@ function formatDateString(date) {
   return `${y}-${m}-${d}`;
 }
 
+// Safely parse date strings of various formats (YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY) into a Date object
+function parseDateSafely(dateStr) {
+  if (!dateStr) return new Date();
+  if (dateStr instanceof Date) return dateStr;
+  
+  const cleanStr = String(dateStr).trim();
+  
+  // Try parsing DD/MM/YYYY or DD-MM-YYYY
+  const parts = cleanStr.split(/[-/]/);
+  if (parts.length === 3) {
+    if (parts[2].length === 4) {
+      // DD-MM-YYYY or DD/MM/YYYY
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) return d;
+    } else if (parts[0].length === 4) {
+      // YYYY-MM-DD
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) return d;
+    }
+  }
+  
+  const d = new Date(cleanStr);
+  if (!isNaN(d.getTime())) return d;
+  
+  return new Date();
+}
+
 // Local Storage Helper Functions
 function saveToLocalStorage() {
   // 1. Always write to localStorage immediately (instant, works offline)
@@ -761,22 +794,14 @@ function populateMonthSelector() {
   // 1. Scan unique year-month strings from transactions
   const uniqueMonths = new Set();
   const now = new Date();
-  const currentYMValue = now.getFullYear() * 12 + now.getMonth(); // Current real-world month/year index
 
   transactions.forEach(t => {
     if (!t.date) return;
-    const parts = t.date.split("-");
-    if (parts.length === 3) {
-      const y = parseInt(parts[0]);
-      const m = parseInt(parts[1]) - 1; // 0-indexed month
-      
-      const tYMValue = y * 12 + m;
-      // Do not include future months
-      if (tYMValue <= currentYMValue) {
-        const monthStr = String(m + 1).padStart(2, '0');
-        uniqueMonths.add(`${y}-${monthStr}`);
-      }
-    }
+    const parsedDate = parseDateSafely(t.date);
+    const y = parsedDate.getFullYear();
+    const m = parsedDate.getMonth();
+    const monthStr = String(m + 1).padStart(2, '0');
+    uniqueMonths.add(`${y}-${monthStr}`);
   });
 
   // Fallback if no entries match
@@ -982,13 +1007,18 @@ function calculateAccountBalance(headId, upToDate = null, fromDate = null) {
   const isIncomeOrExpense = head.type === 'Income' || head.type === 'Expense';
   const effectiveFromDate = isIncomeOrExpense ? fromDate : null;
 
-  const opening = effectiveFromDate ? 0 : (head.opening_balance || 0);
+  // Safely parse opening balance as numeric
+  const opening = effectiveFromDate ? 0 : (parseFloat(String(head.opening_balance || 0).replace(/[^0-9.-]/g, '')) || 0);
   let debitsBefore = 0;
   let creditsBefore = 0;
 
+  const cleanUpToDate = upToDate ? formatDateString(parseDateSafely(upToDate)) : null;
+  const cleanFromDate = effectiveFromDate ? formatDateString(parseDateSafely(effectiveFromDate)) : null;
+
   transactions.forEach(t => {
-    if (upToDate && new Date(t.date) > new Date(upToDate)) return;
-    if (effectiveFromDate && new Date(t.date) < new Date(effectiveFromDate)) return;
+    const cleanTDate = formatDateString(parseDateSafely(t.date));
+    if (cleanUpToDate && cleanTDate > cleanUpToDate) return;
+    if (cleanFromDate && cleanTDate < cleanFromDate) return;
 
     if (t.debit_acc === headId) {
       debitsBefore += t.amount;
@@ -1023,16 +1053,20 @@ function generateLedger() {
   const head = heads.find(h => h.id === headId);
   if (!head) return;
 
-  let openingBal = head.opening_balance || 0;
+  let openingBal = parseFloat(String(head.opening_balance || 0).replace(/[^0-9.-]/g, '')) || 0;
   let totalPeriodDebits = 0;
   let totalPeriodCredits = 0;
 
   const isDebitAccount = head.type === 'Asset' || head.type === 'Expense';
-  const cronTxns = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const cronTxns = [...transactions].sort((a, b) => formatDateString(parseDateSafely(a.date)).localeCompare(formatDateString(parseDateSafely(b.date))));
 
-  if (fromDateVal) {
+  const cleanFromDateVal = fromDateVal ? formatDateString(parseDateSafely(fromDateVal)) : null;
+  const cleanToDateVal = toDateVal ? formatDateString(parseDateSafely(toDateVal)) : null;
+
+  if (cleanFromDateVal) {
     cronTxns.forEach(t => {
-      if (new Date(t.date) < new Date(fromDateVal)) {
+      const cleanTDate = formatDateString(parseDateSafely(t.date));
+      if (cleanTDate < cleanFromDateVal) {
         if (t.debit_acc === headId) {
           openingBal += (isDebitAccount ? t.amount : -t.amount);
         }
@@ -1067,8 +1101,9 @@ function generateLedger() {
   tbody.appendChild(openRow);
 
   const periodTxns = cronTxns.filter(t => {
-    const matchFrom = !fromDateVal || new Date(t.date) >= new Date(fromDateVal);
-    const matchTo = !toDateVal || new Date(t.date) <= new Date(toDateVal);
+    const cleanTDate = formatDateString(parseDateSafely(t.date));
+    const matchFrom = !cleanFromDateVal || cleanTDate >= cleanFromDateVal;
+    const matchTo = !cleanToDateVal || cleanTDate <= cleanToDateVal;
     return (t.debit_acc === headId || t.credit_acc === headId) && matchFrom && matchTo;
   });
 
@@ -1413,7 +1448,7 @@ function generateMonthlyExpenseReport(fromDate, toDate) {
   // 1. Calculate Combined Opening Balance (Cash + Bank)
   let prevDate = null;
   if (fromDate) {
-    const d = new Date(fromDate);
+    const d = parseDateSafely(fromDate);
     d.setDate(d.getDate() - 1);
     prevDate = formatDateString(d);
   }
@@ -1442,15 +1477,19 @@ function generateMonthlyExpenseReport(fromDate, toDate) {
   `;
   tbody.appendChild(opRow);
 
+  const cleanFromDate = fromDate ? formatDateString(parseDateSafely(fromDate)) : null;
+  const cleanToDate = toDate ? formatDateString(parseDateSafely(toDate)) : null;
+
   // 2. Fetch all cash & bank transactions in date range
   const periodTxns = transactions.filter(t => {
-    const matchFrom = !fromDate || new Date(t.date) >= new Date(fromDate);
-    const matchTo = !toDate || new Date(t.date) <= new Date(toDate);
+    const cleanTDate = formatDateString(parseDateSafely(t.date));
+    const matchFrom = !cleanFromDate || cleanTDate >= cleanFromDate;
+    const matchTo = !cleanToDate || cleanTDate <= cleanToDate;
     return matchFrom && matchTo;
   });
 
   // Sort chronologically by date
-  periodTxns.sort((a, b) => new Date(a.date) - new Date(b.date));
+  periodTxns.sort((a, b) => formatDateString(parseDateSafely(a.date)).localeCompare(formatDateString(parseDateSafely(b.date))));
 
   let totalReceipts = 0;
   let totalPayments = 0;
@@ -1459,8 +1498,8 @@ function generateMonthlyExpenseReport(fromDate, toDate) {
     const drHead = heads.find(h => h.id === t.debit_acc);
     const crHead = heads.find(h => h.id === t.credit_acc);
 
-    const isDrCash = t.debit_acc === '107';
-    const isCrCash = t.credit_acc === '107';
+    const isDrCash = drHead && drHead.group === 'Cash Account';
+    const isCrCash = crHead && crHead.group === 'Cash Account';
     const isDrBank = drHead && drHead.group === 'Bank Accounts';
     const isCrBank = crHead && crHead.group === 'Bank Accounts';
 
@@ -1586,7 +1625,7 @@ function generateBankStatement(fromDate, toDate) {
   // 1. Calculate Opening Bank Balance for the selected bank only
   let prevDate = null;
   if (fromDate) {
-    const d = new Date(fromDate);
+    const d = parseDateSafely(fromDate);
     d.setDate(d.getDate() - 1);
     prevDate = formatDateString(d);
   }
@@ -1607,16 +1646,20 @@ function generateBankStatement(fromDate, toDate) {
   `;
   tbody.appendChild(opRow);
 
+  const cleanFromDate = fromDate ? formatDateString(parseDateSafely(fromDate)) : null;
+  const cleanToDate = toDate ? formatDateString(parseDateSafely(toDate)) : null;
+
   // 2. Fetch bank transactions for this bank account in date range
   const bankTxns = transactions.filter(t => {
-    const matchFrom = !fromDate || new Date(t.date) >= new Date(fromDate);
-    const matchTo = !toDate || new Date(t.date) <= new Date(toDate);
+    const cleanTDate = formatDateString(parseDateSafely(t.date));
+    const matchFrom = !cleanFromDate || cleanTDate >= cleanFromDate;
+    const matchTo = !cleanToDate || cleanTDate <= cleanToDate;
     const isBankTxn = t.debit_acc === bankId || t.credit_acc === bankId;
     return matchFrom && matchTo && isBankTxn;
   });
 
   // Sort chronologically
-  bankTxns.sort((a, b) => new Date(a.date) - new Date(b.date));
+  bankTxns.sort((a, b) => formatDateString(parseDateSafely(a.date)).localeCompare(formatDateString(parseDateSafely(b.date))));
 
   let totalDeposits = 0;
   let totalWithdrawals = 0;
